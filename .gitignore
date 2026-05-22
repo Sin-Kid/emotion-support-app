@@ -1,8 +1,8 @@
 # Dependencies
 /node_modules
+server/node_modules
 /.pnp
 .pnp.js
-.env
 
 # Testing
 /coverage
@@ -27,4 +27,7 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+
+# Environment — never commit secrets
 .env
+.env.server

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import dotenv from "dotenv";
-// dotenv.config();
+import AdminPanel from './AdminPanel';
+
+
 // Define the scenarios and their options
 const scenarios = [
   {
@@ -425,12 +426,14 @@ const App = () => {
     // New state to manage the initial landing page visibility
     const [showLandingPage, setShowLandingPage] = useState(true);
 
-    // Local authentication state variables
-    const [userId, setUserId] = useState(null); // Will store the username
-    const [isLoggedIn, setIsLoggedIn] = useState(false); // To track login status
-    const [usernameInput, setUsernameInput] = useState(''); // Input field for username
-    const [passwordInput, setPasswordInput] = useState(''); // Input field for password
-    const [currentPage, setCurrentPage] = useState('login'); // 'login', 'register', 'survey', 'progress', 'checkin', 'chatbot'
+    // Authentication state — now JWT based
+    const [userId, setUserId] = useState(null);
+    const [userRole, setUserRole] = useState(null); // 'patient' | 'admin'
+    const [authToken, setAuthToken] = useState(() => localStorage.getItem('mindcare_token'));
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [usernameInput, setUsernameInput] = useState('');
+    const [passwordInput, setPasswordInput] = useState('');
+    const [currentPage, setCurrentPage] = useState('login');
 
     // App specific state variables
     const [currentAnswers, setCurrentAnswers] = useState({});
@@ -456,19 +459,18 @@ const App = () => {
     const [chatInput, setChatInput] = useState('');
 
     // Daily Check-in specific state variables
-    const [dailyMood, setDailyMood] = useState(3); // Default to middle mood
+    const [dailyMood, setDailyMood] = useState(3);
     const [dailyCheckIns, setDailyCheckIns] = useState([]);
 
     // Dark Mode state
     const [isDarkMode, setIsDarkMode] = useState(() => {
-        // Initialize dark mode from localStorage or default to false
         const savedMode = localStorage.getItem('darkMode');
         return savedMode ? JSON.parse(savedMode) : false;
     });
 
-    // --- Local Storage Keys ---
-    const USERS_DATA_KEY = 'emotionAnalyzerUsers'; // Stores all user credentials
-    const LOGGED_IN_USER_KEY = 'loggedInUser'; // Stores currently logged in username
+    // Auth helpers
+    const TOKEN_KEY = 'mindcare_token';
+    const USER_KEY = 'mindcare_user';
 
     // Video recommendations mapping
     const videoRecommendations = {
@@ -511,172 +513,154 @@ const App = () => {
         localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
     }, [isDarkMode]);
 
-    // --- Mock Hashing for Passwords (VERY INSECURE, FOR DEMO ONLY) ---
-    // In a real app, use a secure server-side hashing library like bcrypt.
-    const hashPasswordMock = (password) => btoa(password); // Base64 encoding
-    const comparePasswordMock = (inputPassword, storedHash) => hashPasswordMock(inputPassword) === storedHash;
-
-    // --- Load User Results from Local Storage (defined first) ---
-    const loadUserResults = useCallback((currentUserId) => {
-        if (!currentUserId) {
-            console.error("User ID not available for loading results from local storage.");
-            return;
-        }
+    // --- Load User Results from PostgreSQL API ---
+    const loadUserResults = useCallback(async (token) => {
+        if (!token) return;
         setIsLoading(true);
         try {
-            const users = JSON.parse(localStorage.getItem(USERS_DATA_KEY) || '{}');
-            const user = users[currentUserId];
-
-            if (user && user.results) {
-                // Ensure timestamps are Date objects for sorting
-                const loaded = user.results.map(result => ({
-                    ...result,
-                    timestamp: new Date(result.timestamp)
-                }));
-                // Sort results by timestamp in descending order (most recent first)
-                loaded.sort((a, b) => b.timestamp - a.timestamp);
-                setUserPastResults(loaded);
-                // Filter and set daily check-ins
-                const loadedDailyCheckIns = loaded.filter(res => res.type === 'dailyCheckIn');
-                setDailyCheckIns(loadedDailyCheckIns);
-
-                // Find the latest survey analysis
-                const latestSurvey = loaded.find(res => res.type === 'survey');
-                if (latestSurvey) {
-                    setAnalysisResult(latestSurvey.analysisData); // Assuming analysisData key holds the full analysis object
-                    setShowAnalysis(true); // Automatically show analysis if past one exists
-                }
-
-
-            } else {
-                setUserPastResults([]);
-                setDailyCheckIns([]);
+            const res = await fetch('/api/results/me', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to load results');
+            const data = await res.json();
+            const loaded = (data.results || []).map(r => ({
+                ...r,
+                timestamp: new Date(r.timestamp),
+            }));
+            setUserPastResults(loaded);
+            const checkIns = loaded.filter(r => r.type === 'dailyCheckIn');
+            setDailyCheckIns(checkIns);
+            const latestSurvey = loaded.find(r => r.type === 'survey');
+            if (latestSurvey) {
+                setAnalysisResult(latestSurvey.analysisData);
+                setShowAnalysis(true);
             }
-            setShowPastResults(false); // Hide initially, user can click to view
-            setSubmissionMessage(''); // Clear message
-            console.log("Past results loaded from local storage!");
+            setShowPastResults(false);
+            setSubmissionMessage('');
         } catch (error) {
-            console.error("Error loading past survey results from local storage:", error.message);
-            setSubmissionMessage(`Error loading past results: ${error.message}`);
+            console.error('Error loading results:', error.message);
         } finally {
             setIsLoading(false);
         }
-    }, []); // Empty dependency array as its internal dependencies are stable
+    }, []);
 
     // --- Effect to check for existing login on mount ---
     useEffect(() => {
-        setIsLoading(true);
-        const storedUserId = localStorage.getItem(LOGGED_IN_USER_KEY);
-        if (storedUserId) {
-            setUserId(storedUserId);
-            setIsLoggedIn(true);
-            setShowLandingPage(false); // Bypass landing page if already logged in
-            setCurrentPage('survey'); // Go directly to survey if logged in
-            setUsernameInput(storedUserId); // Pre-fill username input
-            loadUserResults(storedUserId); // Load past results for the logged-in user
+        const token = localStorage.getItem(TOKEN_KEY);
+        const storedUser = localStorage.getItem(USER_KEY);
+        if (token && storedUser) {
+            try {
+                const user = JSON.parse(storedUser);
+                setAuthToken(token);
+                setUserId(user.username);
+                setUserRole(user.role);
+                setIsLoggedIn(true);
+                setShowLandingPage(false);
+                if (user.role === 'admin') {
+                    setCurrentPage('admin');
+                } else {
+                    setCurrentPage('survey');
+                    loadUserResults(token);
+                }
+            } catch (e) {
+                localStorage.removeItem(TOKEN_KEY);
+                localStorage.removeItem(USER_KEY);
+            }
         } else {
-            setShowLandingPage(true); // Show landing page if not logged in
-            setCurrentPage('login'); // Default to login page after landing
+            setShowLandingPage(true);
+            setCurrentPage('login');
         }
-        setIsLoading(false);
-    }, [loadUserResults]); // Added loadUserResults to dependency array
+    }, [loadUserResults]);
 
 
-    // --- Local Register Handler ---
-    const handleRegister = (e) => {
+    // --- Register Handler (PostgreSQL API) ---
+    const handleRegister = async (e) => {
         e.preventDefault();
         setSubmissionMessage('');
-        setIsLoading(true);
-
-        const newUsername = usernameInput.trim();
-        const newPassword = passwordInput.trim();
-
-        if (!newUsername || !newPassword) {
-            setSubmissionMessage("Please enter both username and password.");
-            setIsLoading(false);
-            return;
-        }
-
-        let users = JSON.parse(localStorage.getItem(USERS_DATA_KEY) || '{}');
-
-        if (users[newUsername]) {
-            setSubmissionMessage("Username already exists. Please choose a different one or log in.");
-            setIsLoading(false);
-            return;
-        }
-
-        // Store user with hashed password and an empty array for results
-        users[newUsername] = { password: hashPasswordMock(newPassword), results: [] };
-        localStorage.setItem(USERS_DATA_KEY, JSON.stringify(users));
-
-        setSubmissionMessage("Registration successful! You can now log in.");
-        setUsernameInput('');
-        setPasswordInput('');
-        setCurrentPage('login'); // Go to login page after registration
-        setIsLoading(false);
-    };
-
-
-    // --- Local Login Handler ---
-    const handleLogin = (e) => {
-        e.preventDefault();
-        setSubmissionMessage('');
-        setIsLoading(true);
-
-        const enteredUsername = usernameInput.trim();
-        const enteredPassword = passwordInput.trim();
-
-        if (!enteredUsername || !enteredPassword) {
-            setSubmissionMessage("Please enter both username and password.");
-            setIsLoading(false);
-            return;
-        }
-
-        const users = JSON.parse(localStorage.getItem(USERS_DATA_KEY) || '{}');
-        const user = users[enteredUsername];
-
-        if (user && comparePasswordMock(enteredPassword, user.password)) {
-            localStorage.setItem(LOGGED_IN_USER_KEY, enteredUsername); // Store logged in user
-            setUserId(enteredUsername);
-            setIsLoggedIn(true);
-            setShowLandingPage(false); // Hide landing page after successful login
-            setCurrentPage('survey'); // Go to survey page
-            loadUserResults(enteredUsername);
-            setSubmissionMessage(`Welcome back, ${enteredUsername}!`);
-        } else {
-            setSubmissionMessage("Invalid username or password.");
-        }
-        setIsLoading(false);
-    };
-
-    // --- Local Logout Handler ---
-    const handleLogout = () => {
         setIsLoading(true);
         try {
-            localStorage.removeItem(LOGGED_IN_USER_KEY); // Remove logged in user from local storage
-            setUserId(null);
-            setIsLoggedIn(false);
-            setUsernameInput(''); // Clear username input
-            setPasswordInput(''); // Clear password input
-            setAnalysisResult(null); // Clear analysis
-            setShowAnalysis(false);
-            setUserPastResults([]); // Clear past results
-            setDailyCheckIns([]); // Clear daily check-ins
-            setShowPastResults(false);
-            setCurrentAnswers({}); // Reset survey answers
-            setSubmissionMessage('You have been logged out.');
-            setShowLandingPage(true); // Show landing page after logout
-            setCurrentPage('login'); // Go back to login page
-            setChatHistory([]); // Clear chat history
-            setAiAgentResponse(''); // Clear AI response
-            setGeneratedExercisePlan(''); // Clear generated exercises
-            setAdditionalHelp(null); // Clear additional help
-        } catch (error) {
-            console.error("Error during local logout:", error.message);
-            setSubmissionMessage(`Logout failed: ${error.message}`);
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput.trim() }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setSubmissionMessage(data.error || 'Registration failed.');
+                return;
+            }
+            setSubmissionMessage('Registration successful! You can now log in.');
+            setUsernameInput('');
+            setPasswordInput('');
+            setCurrentPage('login');
+        } catch (err) {
+            setSubmissionMessage('Network error. Is the server running?');
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // --- Login Handler (PostgreSQL API + JWT) ---
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setSubmissionMessage('');
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput.trim() }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setSubmissionMessage(data.error || 'Login failed.');
+                return;
+            }
+            const { token, user } = data;
+            localStorage.setItem(TOKEN_KEY, token);
+            localStorage.setItem(USER_KEY, JSON.stringify(user));
+            setAuthToken(token);
+            setUserId(user.username);
+            setUserRole(user.role);
+            setIsLoggedIn(true);
+            setShowLandingPage(false);
+            if (user.role === 'admin') {
+                setCurrentPage('admin');
+            } else {
+                setCurrentPage('survey');
+                loadUserResults(token);
+            }
+            setSubmissionMessage(`Welcome back, ${user.username}!`);
+        } catch (err) {
+            setSubmissionMessage('Network error. Is the server running?');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // --- Logout Handler ---
+    const handleLogout = () => {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        setAuthToken(null);
+        setUserId(null);
+        setUserRole(null);
+        setIsLoggedIn(false);
+        setUsernameInput('');
+        setPasswordInput('');
+        setAnalysisResult(null);
+        setShowAnalysis(false);
+        setUserPastResults([]);
+        setDailyCheckIns([]);
+        setShowPastResults(false);
+        setCurrentAnswers({});
+        setSubmissionMessage('You have been logged out.');
+        setShowLandingPage(true);
+        setCurrentPage('login');
+        setChatHistory([]);
+        setAiAgentResponse('');
+        setGeneratedExercisePlan('');
+        setAdditionalHelp(null);
     };
 
     // --- Handle Survey Answer Change ---
@@ -688,46 +672,40 @@ const App = () => {
         setSubmissionMessage(''); // Clear message when answers change
     }, []);
 
-    // --- Save User Results to Local Storage ---
+    // --- Save User Results to PostgreSQL API ---
     const saveUserResults = useCallback(async (dataToSave, type) => {
-        if (!userId) {
-            console.error("User ID not available for saving results to local storage.");
-            setSubmissionMessage("Error: Could not save results. Please ensure you are logged in.");
+        if (!authToken) {
+            setSubmissionMessage('Error: Could not save results. Please ensure you are logged in.');
             return;
         }
         setIsLoading(true);
         try {
-            let users = JSON.parse(localStorage.getItem(USERS_DATA_KEY) || '{}');
-            if (!users[userId]) {
-                users[userId] = { password: '', results: [] };
-            }
-
-            const record = {
-                type: type,
-                timestamp: new Date().toISOString(),
-            };
-
+            let endpoint, body;
             if (type === 'survey') {
-                record.responses = dataToSave.responses;
-                record.analysisData = dataToSave.analysis; // Store the full analysis object
+                endpoint = '/api/results/survey';
+                body = { responses: dataToSave.responses, analysisData: dataToSave.analysis };
             } else if (type === 'dailyCheckIn') {
-                record.mood = dataToSave.mood;
+                endpoint = '/api/results/checkin';
+                body = { mood: dataToSave.mood };
             }
-
-            users[userId].results.push(record);
-            localStorage.setItem(USERS_DATA_KEY, JSON.stringify(users));
-
-            setSubmissionMessage("Your responses/check-in have been saved locally!");
-            console.log(`${type} results saved successfully to local storage!`);
-            loadUserResults(userId); // Refresh past results after saving
-
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setSubmissionMessage(data.error || 'Failed to save.');
+                return;
+            }
+            setSubmissionMessage('Your responses have been saved!');
+            loadUserResults(authToken);
         } catch (error) {
-            console.error(`Error saving ${type} results to local storage:`, error.message);
             setSubmissionMessage(`Error saving results: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
-    }, [userId, loadUserResults]);
+    }, [authToken, loadUserResults]);
 
     // --- Handle Survey Submission ---
     const handleSubmitSurvey = async (e) => {
@@ -822,7 +800,7 @@ const App = () => {
         let chatHistoryArray = [];
         chatHistoryArray.push({ role: "user", parts: [{ text: prompt }] });
         const payload = { contents: chatHistoryArray };
-        const apiKey = process.env.API_KEY; 
+        const apiKey = import.meta.env.VITE_API_KEY;
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
         try {
@@ -961,6 +939,11 @@ const App = () => {
     })).reverse(); // Show newest first
 
     // --- UI Rendering ---
+    // --- Admin panel route ---
+    if (isLoggedIn && userRole === 'admin' && currentPage === 'admin') {
+        return <AdminPanel token={authToken} onLogout={handleLogout} />;
+    }
+
     if (isLoading && !isLoggedIn && currentPage !== 'login' && currentPage !== 'register' && !showLandingPage) {
         return (
             <div className={`flex justify-center items-center h-screen font-sans ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-800'}`}>
@@ -1217,6 +1200,14 @@ const App = () => {
                     >
                         Chat with AI
                     </button>
+                    {userRole === 'admin' && (
+                        <button
+                            onClick={() => setCurrentPage('admin')}
+                            className="flex-1 sm:flex-none py-2 px-3 sm:px-4 rounded-md font-semibold text-sm sm:text-base transition-colors duration-200 bg-violet-700 text-white hover:bg-violet-800"
+                        >
+                            🛡 Admin Panel
+                        </button>
+                    )}
                 </div>
 
 
