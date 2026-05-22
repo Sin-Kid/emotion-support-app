@@ -1,0 +1,23 @@
+# Netlify Configuration File
+# Documentation: https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  # The command Vite uses to build the production bundle
+  command = "npm run build"
+  
+  # The directory where Vite outputs production files
+  publish = "dist"
+
+# Rule 1: Proxy frontend API calls to your hosted backend server
+# Replace the placeholder URL in 'to' with your actual backend API URL once deployed (e.g. Render, Railway)
+[[redirects]]
+  from = "/api/*"
+  to = "https://your-backend-api-url.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# Rule 2: Redirect all other requests to index.html for React SPA Routing (prevents 404 on refresh)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
