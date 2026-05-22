@@ -41,5 +41,5 @@ CREATE INDEX IF NOT EXISTS idx_daily_checkins_created_at ON daily_checkins(creat
 -- Insert default admin user (password: admin123)
 -- bcrypt hash of 'admin123' with 10 rounds
 INSERT INTO users (username, password_hash, role)
-VALUES ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin')
+VALUES ('admin', '$2b$10$BrOxQuDcnp2xM/ashBPeEesY.omJvfIKeolJk57VXoDfZ9jva83Gy', 'admin')
 ON CONFLICT (username) DO NOTHING;
