@@ -8,11 +8,9 @@
   # The directory where Vite outputs production files
   publish = "dist"
 
-# Rule 1: Proxy frontend API calls to your hosted backend server
-# Replace the placeholder URL in 'to' with your actual backend API URL once deployed (e.g. Render, Railway)
 [[redirects]]
   from = "/api/*"
-  to = "https://your-backend-api-url.onrender.com/api/:splat"
+  to = "https://emotion-support-app.onrender.com/api/:splat"
   status = 200
   force = true
 
