@@ -1,74 +1,127 @@
-<<<<<<< HEAD
-# Getting Started with Create React App
+# 🧠 MindCare Platform — Emotional Insights & Support
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+MindCare is a modern, responsive, full-stack web application designed to help individuals track, understand, and manage their emotional health. By leveraging an interactive 15-scenario Emotional Self-Assessment, AI-driven insights, daily mood trackers, and responsive charts, users gain deeper awareness of their stress responses.
 
-## Available Scripts
+It also features a premium **Admin Monitoring Dashboard** enabling clinicians or platform administrators to search patients, view real-time platform averages, analyze individual patient history via slide-in drawers, and export clinical reports.
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## 🛠️ Technology Stack
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+* **Frontend**: React 19, Vite 8 (Rolldown bundler), Tailwind CSS 3, Recharts (responsive data visualization).
+* **Backend**: Node.js, Express.js REST API, PostgreSQL client (`pg`), CORS, JWT Authentication (`jsonwebtoken`), Password Hashing (`bcryptjs`).
+* **Database**: PostgreSQL 16+ relational schema (Users, Survey Results, Daily Mood Check-ins).
+* **AI Engine**: Gemini 2.0 Flash integration for custom exercise plan drafting, poem creation, motivational messaging, and podcast recommendations.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+## 📁 Project Structure
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```
+├── dist/                    # Production client build output
+├── public/                  # Static assets and video tutorials
+├── server/                  # Backend REST API
+│   ├── middleware/          # Express route auth guards
+│   ├── routes/              # Auth, Results, and Admin controller paths
+│   ├── db.js                # pg client pool initialization
+│   ├── index.js             # Express app core
+│   ├── schema.sql           # Database table schemas and seed scripts
+│   └── package.json         # Backend package definitions
+├── src/                     # React 19 Frontend
+│   ├── App.jsx              # Client router, survey form, and chatbot
+│   ├── AdminPanel.jsx       # Premium clinician analytics dashboard
+│   ├── index.css            # Stylesheets & Tailwind configuration
+│   └── index.jsx            # React client mounting entry
+├── vite.config.js           # Vite 8 / Rolldown build configurations & proxy maps
+├── tailwind.config.js       # Styling definitions
+├── .env.server.example      # Environment variables blueprint for the server
+└── README.md                # Project documentation
+```
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 🚀 Getting Started
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 1. Database Setup
+Ensure you have PostgreSQL running, create the database, and run the schema definitions:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+# Start your PostgreSQL service
+brew services start postgresql@16
 
-### `npm run eject`
+# Create the database
+createdb mindcare_db
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# Populate the schema (indexes, tables, and default seed admin user)
+psql -d mindcare_db -f server/schema.sql
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 2. Backend API Setup
+Navigate to the `server` directory, configure your environment variables, and start the development server:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+cd server
+npm install
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Copy example environment configuration
+cp ../.env.server.example .env.server
+```
 
-## Learn More
+Edit the `.env.server` file to fill in your PostgreSQL credentials and a secure JWT secret:
+```ini
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=mindcare_db
+DB_USER=your_postgres_username
+DB_PASSWORD=your_postgres_password
+JWT_SECRET=your_super_secret_jwt_random_string
+PORT=4000
+FRONTEND_URL=http://localhost:3000
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Start the backend:
+```bash
+npm run dev # Launches nodemon server
+```
+The Express server will start listening on `http://localhost:4000`.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### 3. Frontend App Setup
+Return to the root folder, configure client environments, and launch the dev environment:
 
-### Code Splitting
+```bash
+cd ..
+npm install
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Configure your client `.env`:
+```ini
+VITE_API_KEY=your_gemini_api_key_here
+VITE_API_URL=http://localhost:3000
+```
 
-### Analyzing the Bundle Size
+Launch the Vite server:
+```bash
+npm run dev
+```
+Open **[http://localhost:3000](http://localhost:3000)** in your browser. All frontend requests to `/api/*` are automatically proxied to `http://localhost:4000` to prevent CORS issues.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+---
 
-### Making a Progressive Web App
+## 👤 Login & Admin Roles
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### 🧑‍⚕️ Patient Experience
+* Create any regular user through the **Register** tab.
+* Complete the **15-scenario Emotional Survey** to generate live emotional score bar charts and get tailored mental exercise suggestions.
+* Log daily moods using the **Daily Check-in** tab to track mood trends over time.
+* Chat with the supportive **AI Chatbot** to ask questions and receive empathetic guidance.
 
-### Advanced Configuration
+### 🛡️ Admin/Clinician Experience
+To inspect platform stats and patient histories, log in with the pre-seeded admin user:
+* **Username**: `admin`
+* **Password**: `admin123`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-=======
-# emotion-support-app
->>>>>>> origin/main1
+The Admin interface allows you to:
+* View aggregated counts of **Total Patients**, **Surveys**, **Daily Check-ins**, and **Avg Platform Mood**.
+* Trace platform **Mood Trends** and **Emotion Frequency Distributions** using detailed charts.
+* Search patients by name and **Export a clinical CSV report** detailing all metrics.
+* Click on any patient row to open a **Slide-in Detail Drawer**, revealing a **Mood Trend line graph**, an **Emotional Profile Radar Chart**, and a history log of all past surveys with their raw responses and assessments.
