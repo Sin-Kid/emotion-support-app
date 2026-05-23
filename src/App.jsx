@@ -572,11 +572,10 @@ const App = () => {
         }
     }, []);
 
-    // --- Effect to check for existing login on mount ---
+    // --- Effect to check for existing login on mount and handle OAuth redirects ---
     useEffect(() => {
-        const checkSession = async () => {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) {
+        const handleSession = async (session) => {
+            if (!session) {
                 setShowLandingPage(true);
                 setCurrentPage('login');
                 return;
@@ -633,7 +632,27 @@ const App = () => {
                 loadUserResults();
             }
         };
-        checkSession();
+
+        // Get initial session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                handleSession(session);
+            } else {
+                setShowLandingPage(true);
+                setCurrentPage('login');
+            }
+        });
+
+        // Listen for active auth state changes (e.g. OAuth redirect token parsed from URL)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) {
+                handleSession(session);
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
     }, [loadUserResults]);
 
 

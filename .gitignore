@@ -31,3 +31,5 @@ yarn-error.log*
 # Environment — never commit secrets
 .env
 .env.server
+client_secret_*.json
+package-lock 2.json
