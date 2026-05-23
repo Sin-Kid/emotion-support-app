@@ -589,6 +589,15 @@ const App = () => {
                 .eq('id', user.id)
                 .single();
 
+            if (profileError && profileError.code !== 'PGRST116') {
+                console.error('Error fetching user profile:', profileError);
+                setSubmissionMessage(`Profile fetch error: ${profileError.message} (Code: ${profileError.code})`);
+                await supabase.auth.signOut();
+                setShowLandingPage(true);
+                setCurrentPage('login');
+                return;
+            }
+
             if (profileError || !profile) {
                 // Newly logged in OAuth user without a profile, let's create it!
                 // Extract username from email prefix or user metadata
@@ -597,6 +606,8 @@ const App = () => {
                 const username = rawUsername.replace(/\s+/g, '').slice(0, 15);
                 const role = username.toLowerCase() === 'admin' ? 'admin' : 'patient';
                 
+                console.log('Creating new user profile in database for:', user.id, username);
+
                 const { data: newProfile, error: createError } = await supabase
                     .from('profiles')
                     .insert([{ id: user.id, username, role }])
@@ -604,6 +615,8 @@ const App = () => {
                     .single();
 
                 if (createError || !newProfile) {
+                    console.error('Profile creation failed:', createError);
+                    setSubmissionMessage(`Profile creation failed: ${createError?.message || 'Database insert error'}`);
                     await supabase.auth.signOut();
                     setShowLandingPage(true);
                     setCurrentPage('login');
