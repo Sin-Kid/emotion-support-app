@@ -1,10 +1,64 @@
 # 🧠 MindCare Platform — Emotional Insights & Support
 
+[![Live Site](https://img.shields.io/badge/Live%20Demo-Netlify-blueviolet?style=for-the-badge&logo=netlify)](https://emotion-support.netlify.app)
+
 MindCare is a modern, responsive, full-stack web application designed to help individuals track, understand, and manage their emotional health. By leveraging an interactive 15-scenario Emotional Self-Assessment, AI-driven insights, daily mood trackers, and responsive charts, users gain deeper awareness of their stress responses.
 
 It also features a premium **Admin Monitoring Dashboard** enabling clinicians or platform administrators to search patients, view real-time platform averages, analyze individual patient history via slide-in drawers, and export clinical reports.
 
 ---
+
+## 🌐 Live Web Application
+
+The platform is deployed and fully operational at:
+👉 **[https://emotion-support.netlify.app](https://emotion-support.netlify.app)**
+
+---
+
+## 📸 Visual Walkthrough
+
+### 🔑 Landing & Login Page
+A premium, glassmorphic dark-mode landing interface with dynamic micro-animations, integrated with email-mask authentication and a **"Continue with Google"** OAuth flow.
+
+![Login Page](public/screenshots/login_page.png)
+
+### 📋 Emotional Survey Self-Assessment
+An interactive 15-scenario questionnaire designed to assess how individuals react to challenging stressors.
+
+![Emotional Survey](public/screenshots/survey_page.png)
+
+### 🤖 AI Personalized Insights & Plans
+Integrates the Gemini API dynamically to generate personalized exercise regimes, motivational poems, uplifting quotes, custom podcast suggestions, and embedded mindfulness yoga tutorials.
+
+![AI Insights](public/screenshots/ai_insights.png)
+
+### 📅 Daily Mood Check-in
+Enables quick daily mood logging to track subjective well-being indexes.
+
+![Daily Check-in](public/screenshots/daily_checkin.png)
+
+### 📊 Patient Analytical Progress Charts
+Visualizes survey-derived emotional profiles and daily mood trajectories using responsive charts (Bar charts & Line charts).
+
+![Progress Charts](public/screenshots/progress_page.png)
+
+### 🛡️ Clinician/Admin Overview Dashboard
+Consolidates platform performance metrics, calculating averages, unique active clinical rates, and overall emotion frequency distributions.
+
+![Admin Overview](public/screenshots/admin_dashboard.png)
+
+### 👥 Interactive Patient Roster
+Allows clinicians to search patients, analyze aggregated survey counts, check-in history, average mood levels, and export full reports.
+
+![Admin Patients List](public/screenshots/admin_patients.png)
+
+### 📑 Slide-out Patient Analytical Drawer
+Clicking any patient opens an inline, full-height sliding drawer presenting their entire clinical progress chart, mood fluctuations, and historical survey assessments.
+
+![Admin Patient Drawer](public/screenshots/admin_drawer.png)
+
+---
+
 
 ## 🛠️ Technology Stack
 
