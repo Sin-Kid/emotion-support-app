@@ -1,332 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, RadarChart, Radar,
-  PolarGrid, PolarAngleAxis, PolarRadiusAxis
+  Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import StatCard from './StatCard';
+import PatientRow from './PatientRow';
+import PatientDrawer from './PatientDrawer';
+import { moodLabel, moodColor, emotionColors } from './utils';
+import { supabase } from '../supabaseClient';
 
-const API_URL = '';
-
-const moodLabel = (m) => {
-  if (m >= 4.5) return 'Excellent';
-  if (m >= 3.5) return 'Good';
-  if (m >= 2.5) return 'Neutral';
-  if (m >= 1.5) return 'Low';
-  return 'Very Low';
-};
-
-const moodColor = (m) => {
-  if (m >= 4.5) return '#10b981';
-  if (m >= 3.5) return '#84cc16';
-  if (m >= 2.5) return '#f59e0b';
-  if (m >= 1.5) return '#f97316';
-  return '#ef4444';
-};
-
-const emotionColors = {
-  anxiety: '#f87171', fear: '#fb923c', worry: '#fbbf24',
-  tension: '#a78bfa', anguish: '#f472b6', agony: '#e11d48',
-  shock: '#60a5fa', suffering: '#c084fc',
-};
-
-// ──────────────────────────────────────────────
-// Stat Card
-// ──────────────────────────────────────────────
-const StatCard = ({ icon, label, value, sub, color }) => (
-  <div style={{
-    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-    borderRadius: 16, padding: '20px 24px', flex: 1, minWidth: 160,
-    border: `1px solid ${color}33`, position: 'relative', overflow: 'hidden',
-  }}>
-    <div style={{ position: 'absolute', top: -10, right: -10, fontSize: 60, opacity: 0.07 }}>{icon}</div>
-    <div style={{ fontSize: 28, marginBottom: 4 }}>{icon}</div>
-    <div style={{ fontSize: 32, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-    <div style={{ fontSize: 13, color: '#a5b4fc', marginTop: 4 }}>{label}</div>
-    {sub && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{sub}</div>}
-  </div>
-);
-
-// ──────────────────────────────────────────────
-// Patient Row
-// ──────────────────────────────────────────────
-const PatientRow = ({ patient, onClick, selected }) => {
-  const mood = parseFloat(patient.avg_mood) || 0;
-  const emotions = patient.dominant_emotions || [];
-  const lastActivity = patient.last_activity
-    ? new Date(patient.last_activity).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'Never';
-
-  return (
-    <tr
-      onClick={() => onClick(patient)}
-      style={{
-        cursor: 'pointer',
-        background: selected ? 'rgba(99,102,241,0.15)' : 'transparent',
-        transition: 'background 0.15s',
-        borderBottom: '1px solid #1e1b4b',
-      }}
-      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'rgba(99,102,241,0.08)'; }}
-      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
-    >
-      <td style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 700, fontSize: 14, color: '#fff', flexShrink: 0,
-          }}>
-            {patient.username.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, color: '#e0e7ff', fontSize: 14 }}>{patient.username}</div>
-            <div style={{ fontSize: 11, color: '#6b7280' }}>ID #{patient.id}</div>
-          </div>
-        </div>
-      </td>
-      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-        <span style={{
-          background: '#312e81', borderRadius: 20, padding: '3px 12px',
-          fontSize: 13, color: '#a5b4fc', fontWeight: 600,
-        }}>
-          {patient.total_surveys}
-        </span>
-      </td>
-      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-        <span style={{
-          background: '#1e3a5f', borderRadius: 20, padding: '3px 12px',
-          fontSize: 13, color: '#60a5fa', fontWeight: 600,
-        }}>
-          {patient.total_checkins}
-        </span>
-      </td>
-      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-        {mood > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-            <span style={{ fontSize: 16, fontWeight: 800, color: moodColor(mood) }}>{mood.toFixed(1)}</span>
-            <span style={{ fontSize: 10, color: moodColor(mood), opacity: 0.8 }}>{moodLabel(mood)}</span>
-          </div>
-        ) : <span style={{ color: '#4b5563', fontSize: 12 }}>No data</span>}
-      </td>
-      <td style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 200 }}>
-          {emotions.slice(0, 2).map(e => (
-            <span key={e} style={{
-              background: `${emotionColors[e] || '#6366f1'}22`,
-              color: emotionColors[e] || '#a5b4fc',
-              border: `1px solid ${emotionColors[e] || '#6366f1'}44`,
-              borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600,
-            }}>
-              {e}
-            </span>
-          ))}
-          {emotions.length === 0 && <span style={{ color: '#4b5563', fontSize: 12 }}>—</span>}
-        </div>
-      </td>
-      <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12 }}>{lastActivity}</td>
-      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-        <span style={{ fontSize: 16, color: '#6366f1' }}>›</span>
-      </td>
-    </tr>
-  );
-};
-
-// ──────────────────────────────────────────────
-// Patient Detail Drawer
-// ──────────────────────────────────────────────
-const PatientDrawer = ({ patientId, token, onClose }) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!patientId) return;
-    setLoading(true);
-    fetch(`/api/admin/patients/${patientId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [patientId, token]);
-
-  const moodChartData = data?.checkins?.slice(0, 14).reverse().map(c => ({
-    date: new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    mood: c.mood,
-  })) || [];
-
-  const emotionRadarData = data?.surveys?.[0]?.analysis_data?.emotionalScores
-    ? Object.entries(data.surveys[0].analysis_data.emotionalScores).map(([k, v]) => ({
-        emotion: k.charAt(0).toUpperCase() + k.slice(1),
-        score: v,
-      }))
-    : [];
-
-  return (
-    <div style={{
-      position: 'fixed', right: 0, top: 0, bottom: 0, width: 480,
-      background: '#0f0d1e', borderLeft: '1px solid #1e1b4b',
-      overflowY: 'auto', zIndex: 100, padding: 28,
-      boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
-      animation: 'slideIn 0.25s ease',
-    }}>
-      <style>{`@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h3 style={{ margin: 0, color: '#e0e7ff', fontSize: 18, fontWeight: 700 }}>Patient Detail</h3>
-        <button
-          onClick={onClose}
-          style={{
-            background: '#1e1b4b', border: 'none', color: '#a5b4fc',
-            borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 14,
-          }}
-        >✕ Close</button>
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: 'center', color: '#6366f1', paddingTop: 80 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>⟳</div>
-          <div style={{ color: '#a5b4fc' }}>Loading patient data…</div>
-        </div>
-      ) : data ? (
-        <>
-          {/* Patient header */}
-          <div style={{
-            background: 'linear-gradient(135deg, #1e1b4b, #312e81)',
-            borderRadius: 12, padding: 20, marginBottom: 24,
-            border: '1px solid #3730a3',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-              <div style={{
-                width: 52, height: 52, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 22, fontWeight: 800, color: '#fff',
-              }}>
-                {data.patient.username.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#e0e7ff' }}>{data.patient.username}</div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>
-                  Joined {new Date(data.patient.created_at).toLocaleDateString()}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 16 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#a5b4fc' }}>{data.surveys.length}</div>
-                <div style={{ fontSize: 11, color: '#6b7280' }}>Surveys</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#60a5fa' }}>{data.checkins.length}</div>
-                <div style={{ fontSize: 11, color: '#6b7280' }}>Check-ins</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Mood chart */}
-          {moodChartData.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <h4 style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
-                Mood Trend
-              </h4>
-              <div style={{ background: '#1a1730', borderRadius: 12, padding: 16 }}>
-                <ResponsiveContainer width="100%" height={160}>
-                  <LineChart data={moodChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e1b4b" />
-                    <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} />
-                    <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{ background: '#0f0d1e', border: '1px solid #3730a3', borderRadius: 8 }}
-                      labelStyle={{ color: '#a5b4fc' }}
-                      itemStyle={{ color: '#10b981' }}
-                    />
-                    <Line type="monotone" dataKey="mood" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          {/* Emotion radar */}
-          {emotionRadarData.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <h4 style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
-                Latest Emotional Profile
-              </h4>
-              <div style={{ background: '#1a1730', borderRadius: 12, padding: 16 }}>
-                <ResponsiveContainer width="100%" height={220}>
-                  <RadarChart data={emotionRadarData}>
-                    <PolarGrid stroke="#1e1b4b" />
-                    <PolarAngleAxis dataKey="emotion" tick={{ fill: '#6b7280', fontSize: 10 }} />
-                    <PolarRadiusAxis tick={{ fill: '#4b5563', fontSize: 9 }} domain={[0, 3]} />
-                    <Radar name="Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.3} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          {/* Survey history */}
-          {data.surveys.length > 0 && (
-            <div>
-              <h4 style={{ color: '#a5b4fc', fontSize: 13, fontWeight: 600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
-                Survey History ({data.surveys.length})
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {data.surveys.map((s, i) => (
-                  <div key={s.id} style={{
-                    background: '#1a1730', borderRadius: 10, padding: '12px 16px',
-                    border: '1px solid #1e1b4b',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ color: '#a5b4fc', fontSize: 12, fontWeight: 600 }}>
-                        Survey #{data.surveys.length - i}
-                      </span>
-                      <span style={{ color: '#4b5563', fontSize: 11 }}>
-                        {new Date(s.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    {s.identified_problems?.length > 0 && (
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {s.identified_problems.map(p => (
-                          <span key={p} style={{
-                            background: `${emotionColors[p] || '#6366f1'}22`,
-                            color: emotionColors[p] || '#a5b4fc',
-                            border: `1px solid ${emotionColors[p] || '#6366f1'}44`,
-                            borderRadius: 10, padding: '2px 8px', fontSize: 11,
-                          }}>{p}</span>
-                        ))}
-                      </div>
-                    )}
-                    {s.analysis_data?.assessment && (
-                      <div style={{ color: '#6b7280', fontSize: 11, marginTop: 6, lineHeight: 1.5 }}
-                        dangerouslySetInnerHTML={{ __html: s.analysis_data.assessment.replace(/\*\*(.*?)\*\*/g, '<b style="color:#a5b4fc">$1</b>') }}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {data.surveys.length === 0 && data.checkins.length === 0 && (
-            <div style={{ color: '#4b5563', textAlign: 'center', paddingTop: 40 }}>
-              No data recorded yet for this patient.
-            </div>
-          )}
-        </>
-      ) : (
-        <div style={{ color: '#ef4444', textAlign: 'center', paddingTop: 80 }}>
-          Failed to load patient data.
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ──────────────────────────────────────────────
-// AdminPanel (main export)
-// ──────────────────────────────────────────────
 const AdminPanel = ({ token, onLogout }) => {
   const [stats, setStats] = useState(null);
   const [patients, setPatients] = useState([]);
@@ -340,25 +22,219 @@ const AdminPanel = ({ token, onLogout }) => {
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const r = await fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${token}` } });
-      const d = await r.json();
-      setStats(d);
-    } catch (e) { console.error(e); }
-    finally { setStatsLoading(false); }
-  }, [token]);
+      // 1. Total Patients count
+      const { count: patientCount, error: err1 } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'patient');
+
+      // 2. Total Surveys count
+      const { count: surveyCount, error: err2 } = await supabase
+        .from('survey_results')
+        .select('*', { count: 'exact', head: true });
+
+      // 3. Total Checkins count
+      const { count: checkinCount, error: err3 } = await supabase
+        .from('daily_checkins')
+        .select('*', { count: 'exact', head: true });
+
+      // 4. Avg Mood & Mood Trend over last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data: allCheckins, error: err4 } = await supabase
+        .from('daily_checkins')
+        .select('mood, created_at');
+
+      if (err1 || err2 || err3 || err4) {
+        throw new Error('Supabase stats fetch error');
+      }
+
+      // Compute avg mood
+      let avgMood = 0;
+      if (allCheckins && allCheckins.length > 0) {
+        const sum = allCheckins.reduce((acc, c) => acc + c.mood, 0);
+        avgMood = parseFloat((sum / allCheckins.length).toFixed(2));
+      }
+
+      // Compute mood trend over 30 days (grouped by date)
+      const trendMap = {};
+      allCheckins.forEach(c => {
+        const dateStr = new Date(c.created_at).toISOString().split('T')[0];
+        if (new Date(c.created_at) >= thirtyDaysAgo) {
+          if (!trendMap[dateStr]) {
+            trendMap[dateStr] = { sum: 0, count: 0 };
+          }
+          trendMap[dateStr].sum += c.mood;
+          trendMap[dateStr].count += 1;
+        }
+      });
+      const moodTrend = Object.entries(trendMap)
+        .map(([date, val]) => ({
+          date: date,
+          avg_mood: (val.sum / val.count).toFixed(2),
+          count: val.count
+        }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // 5. Active users this week
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const { data: recentSurveys, error: err5 } = await supabase
+        .from('survey_results')
+        .select('user_id')
+        .gte('created_at', sevenDaysAgo.toISOString());
+
+      const { data: recentCheckins, error: err6 } = await supabase
+        .from('daily_checkins')
+        .select('user_id')
+        .gte('created_at', sevenDaysAgo.toISOString());
+
+      const activeUsersSet = new Set();
+      (recentSurveys || []).forEach(s => activeUsersSet.add(s.user_id));
+      (recentCheckins || []).forEach(c => activeUsersSet.add(c.user_id));
+      const activeUsersThisWeek = activeUsersSet.size;
+
+      // 6. Emotion distribution
+      const { data: surveys, error: err7 } = await supabase
+        .from('survey_results')
+        .select('analysis_data');
+
+      const emotionTotals = {};
+      (surveys || []).forEach(row => {
+        const scores = row.analysis_data?.emotionalScores || {};
+        Object.entries(scores).forEach(([emotion, score]) => {
+          emotionTotals[emotion] = (emotionTotals[emotion] || 0) + Number(score);
+        });
+      });
+
+      setStats({
+        totalPatients: patientCount || 0,
+        totalSurveys: surveyCount || 0,
+        totalCheckins: checkinCount || 0,
+        avgMood,
+        activeUsersThisWeek,
+        emotionDistribution: emotionTotals,
+        moodTrend,
+      });
+    } catch (e) {
+      console.error('fetchStats error:', e);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
 
   const fetchPatients = useCallback(async (q = '') => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/admin/patients?search=${encodeURIComponent(q)}&limit=50`, {
-        headers: { Authorization: `Bearer ${token}` }
+      // 1. Fetch patient profiles
+      let query = supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'patient');
+      
+      if (q) {
+        query = query.ilike('username', `%${q}%`);
+      }
+
+      const { data: patientProfiles, error: profileErr } = await query;
+      if (profileErr) throw profileErr;
+
+      if (!patientProfiles || patientProfiles.length === 0) {
+        setPatients([]);
+        setTotal(0);
+        return;
+      }
+
+      // 2. Fetch all survey results and daily checkins for these patients to aggregate
+      const patientIds = patientProfiles.map(p => p.id);
+
+      const { data: allSurveys, error: surveyErr } = await supabase
+        .from('survey_results')
+        .select('*')
+        .in('user_id', patientIds);
+
+      const { data: allCheckins, error: checkinErr } = await supabase
+        .from('daily_checkins')
+        .select('*')
+        .in('user_id', patientIds);
+
+      if (surveyErr) throw surveyErr;
+      if (checkinErr) throw checkinErr;
+
+      // Group surveys and checkins by user_id
+      const surveysByPatient = {};
+      const checkinsByPatient = {};
+      patientIds.forEach(id => {
+        surveysByPatient[id] = [];
+        checkinsByPatient[id] = [];
       });
-      const d = await r.json();
-      setPatients(d.patients || []);
-      setTotal(d.total || 0);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [token]);
+
+      (allSurveys || []).forEach(s => {
+        surveysByPatient[s.user_id]?.push(s);
+      });
+      (allCheckins || []).forEach(c => {
+        checkinsByPatient[c.user_id]?.push(c);
+      });
+
+      // 3. Aggregate patient summary metrics
+      const aggregatedPatients = patientProfiles.map(p => {
+        const surveys = surveysByPatient[p.id] || [];
+        const checkins = checkinsByPatient[p.id] || [];
+
+        // Sort surveys & checkins by created_at DESC
+        surveys.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        checkins.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        // total surveys and checkins
+        const total_surveys = surveys.length;
+        const total_checkins = checkins.length;
+
+        // avg mood
+        let avg_mood = 0;
+        if (checkins.length > 0) {
+          const sum = checkins.reduce((acc, c) => acc + c.mood, 0);
+          avg_mood = (sum / checkins.length).toFixed(2);
+        }
+
+        // dominant emotions from latest survey
+        const dominant_emotions = surveys.length > 0 ? (surveys[0].analysis_data?.identifiedProblems || []) : [];
+
+        // last activity
+        const latestSurveyTime = surveys.length > 0 ? new Date(surveys[0].created_at) : new Date(0);
+        const latestCheckinTime = checkins.length > 0 ? new Date(checkins[0].created_at) : new Date(0);
+        const greatestTime = latestSurveyTime > latestCheckinTime ? latestSurveyTime : latestCheckinTime;
+        const last_activity = greatestTime.getTime() > 0 ? greatestTime.toISOString() : null;
+
+        return {
+          id: p.id,
+          username: p.username,
+          created_at: p.created_at,
+          last_login: p.last_login,
+          total_surveys,
+          total_checkins,
+          avg_mood,
+          dominant_emotions,
+          last_activity
+        };
+      });
+
+      // Sort by last_activity DESC (nulls last)
+      aggregatedPatients.sort((a, b) => {
+        if (!a.last_activity) return 1;
+        if (!b.last_activity) return -1;
+        return new Date(b.last_activity) - new Date(a.last_activity);
+      });
+
+      setPatients(aggregatedPatients);
+      setTotal(aggregatedPatients.length);
+    } catch (e) {
+      console.error('fetchPatients error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchStats();

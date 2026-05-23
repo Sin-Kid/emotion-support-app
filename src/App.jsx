@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import AdminPanel from './AdminPanel';
+import AdminPanel from './admin/AdminPanel';
+import { supabase } from './supabaseClient';
 
 
 // Define the scenarios and their options
@@ -514,19 +515,46 @@ const App = () => {
     }, [isDarkMode]);
 
     // --- Load User Results from PostgreSQL API ---
-    const loadUserResults = useCallback(async (token) => {
-        if (!token) return;
+    const loadUserResults = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/results/me', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error('Failed to load results');
-            const data = await res.json();
-            const loaded = (data.results || []).map(r => ({
-                ...r,
-                timestamp: new Date(r.timestamp),
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError || !user) return;
+
+            // Query Supabase for surveys
+            const { data: surveys, error: surveyError } = await supabase
+                .from('survey_results')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            // Query Supabase for checkins
+            const { data: checkins, error: checkinError } = await supabase
+                .from('daily_checkins')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (surveyError) throw surveyError;
+            if (checkinError) throw checkinError;
+
+            const loadedSurveys = (surveys || []).map(s => ({
+                id: s.id,
+                type: 'survey',
+                timestamp: new Date(s.created_at),
+                responses: s.responses,
+                analysisData: s.analysis_data,
             }));
+
+            const loadedCheckins = (checkins || []).map(c => ({
+                id: c.id,
+                type: 'dailyCheckIn',
+                timestamp: new Date(c.created_at),
+                mood: c.mood,
+            }));
+
+            const loaded = [...loadedSurveys, ...loadedCheckins].sort((a, b) => b.timestamp - a.timestamp);
+
             setUserPastResults(loaded);
             const checkIns = loaded.filter(r => r.type === 'dailyCheckIn');
             setDailyCheckIns(checkIns);
@@ -546,30 +574,43 @@ const App = () => {
 
     // --- Effect to check for existing login on mount ---
     useEffect(() => {
-        const token = localStorage.getItem(TOKEN_KEY);
-        const storedUser = localStorage.getItem(USER_KEY);
-        if (token && storedUser) {
-            try {
-                const user = JSON.parse(storedUser);
-                setAuthToken(token);
-                setUserId(user.username);
-                setUserRole(user.role);
-                setIsLoggedIn(true);
-                setShowLandingPage(false);
-                if (user.role === 'admin') {
-                    setCurrentPage('admin');
-                } else {
-                    setCurrentPage('survey');
-                    loadUserResults(token);
-                }
-            } catch (e) {
-                localStorage.removeItem(TOKEN_KEY);
-                localStorage.removeItem(USER_KEY);
+        const checkSession = async () => {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) {
+                setShowLandingPage(true);
+                setCurrentPage('login');
+                return;
             }
-        } else {
-            setShowLandingPage(true);
-            setCurrentPage('login');
-        }
+
+            const user = session.user;
+            // Fetch user profile from public.profiles
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (profileError || !profile) {
+                // Profile not found, sign out
+                await supabase.auth.signOut();
+                setShowLandingPage(true);
+                setCurrentPage('login');
+                return;
+            }
+
+            setAuthToken(session.access_token);
+            setUserId(profile.username);
+            setUserRole(profile.role);
+            setIsLoggedIn(true);
+            setShowLandingPage(false);
+            if (profile.role === 'admin') {
+                setCurrentPage('admin');
+            } else {
+                setCurrentPage('survey');
+                loadUserResults();
+            }
+        };
+        checkSession();
     }, [loadUserResults]);
 
 
@@ -578,23 +619,50 @@ const App = () => {
         e.preventDefault();
         setSubmissionMessage('');
         setIsLoading(true);
+        const username = usernameInput.trim();
+        const password = passwordInput.trim();
+        if (!username || !password) {
+            setSubmissionMessage('Please enter both username and password.');
+            setIsLoading(false);
+            return;
+        }
+
+        const email = `${username.toLowerCase()}@mindcare.com`;
+
         try {
-            const res = await fetch('/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput.trim() }),
+            // Sign up using Supabase Auth
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
             });
-            const data = await res.json();
-            if (!res.ok) {
-                setSubmissionMessage(data.error || 'Registration failed.');
+
+            if (error) {
+                setSubmissionMessage(error.message);
                 return;
             }
+
+            if (!data.user) {
+                setSubmissionMessage('Registration failed. Please try again.');
+                return;
+            }
+
+            // Create user profile in profiles table
+            const role = username.toLowerCase() === 'admin' ? 'admin' : 'patient';
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .insert([{ id: data.user.id, username, role }]);
+
+            if (profileError) {
+                setSubmissionMessage(`Profile creation error: ${profileError.message}`);
+                return;
+            }
+
             setSubmissionMessage('Registration successful! You can now log in.');
             setUsernameInput('');
             setPasswordInput('');
             setCurrentPage('login');
         } catch (err) {
-            setSubmissionMessage('Network error. Is the server running?');
+            setSubmissionMessage(`Registration failed: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -605,41 +673,78 @@ const App = () => {
         e.preventDefault();
         setSubmissionMessage('');
         setIsLoading(true);
+        const username = usernameInput.trim();
+        const password = passwordInput.trim();
+        if (!username || !password) {
+            setSubmissionMessage('Please enter both username and password.');
+            setIsLoading(false);
+            return;
+        }
+
+        const email = `${username.toLowerCase()}@mindcare.com`;
+
         try {
-            const res = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput.trim() }),
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
             });
-            const data = await res.json();
-            if (!res.ok) {
-                setSubmissionMessage(data.error || 'Login failed.');
+
+            if (error) {
+                setSubmissionMessage(error.message || 'Login failed.');
                 return;
             }
-            const { token, user } = data;
-            localStorage.setItem(TOKEN_KEY, token);
-            localStorage.setItem(USER_KEY, JSON.stringify(user));
-            setAuthToken(token);
-            setUserId(user.username);
-            setUserRole(user.role);
+
+            if (!data.session || !data.user) {
+                setSubmissionMessage('Login failed. Please check your credentials.');
+                return;
+            }
+
+            // Fetch user profile
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.user.id)
+                .single();
+
+            if (profileError || !profile) {
+                setSubmissionMessage('Profile record not found. Please contact support.');
+                return;
+            }
+
+            // Update last_login timestamp
+            await supabase
+                .from('profiles')
+                .update({ last_login: new Date().toISOString() })
+                .eq('id', data.user.id);
+
+            setAuthToken(data.session.access_token);
+            setUserId(profile.username);
+            setUserRole(profile.role);
             setIsLoggedIn(true);
             setShowLandingPage(false);
-            if (user.role === 'admin') {
+
+            if (profile.role === 'admin') {
                 setCurrentPage('admin');
             } else {
                 setCurrentPage('survey');
-                loadUserResults(token);
+                loadUserResults();
             }
-            setSubmissionMessage(`Welcome back, ${user.username}!`);
+
+            setSubmissionMessage(`Welcome back, ${profile.username}!`);
         } catch (err) {
-            setSubmissionMessage('Network error. Is the server running?');
+            setSubmissionMessage(`Login failed: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
     };
 
     // --- Logout Handler ---
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            await supabase.auth.signOut();
+        } catch (e) {
+            console.error('Supabase sign out error:', e);
+        }
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
         setAuthToken(null);
@@ -674,38 +779,44 @@ const App = () => {
 
     // --- Save User Results to PostgreSQL API ---
     const saveUserResults = useCallback(async (dataToSave, type) => {
-        if (!authToken) {
-            setSubmissionMessage('Error: Could not save results. Please ensure you are logged in.');
-            return;
-        }
         setIsLoading(true);
         try {
-            let endpoint, body;
-            if (type === 'survey') {
-                endpoint = '/api/results/survey';
-                body = { responses: dataToSave.responses, analysisData: dataToSave.analysis };
-            } else if (type === 'dailyCheckIn') {
-                endpoint = '/api/results/checkin';
-                body = { mood: dataToSave.mood };
-            }
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-                body: JSON.stringify(body),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                setSubmissionMessage(data.error || 'Failed to save.');
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError || !user) {
+                setSubmissionMessage('Error: Could not save results. Please ensure you are logged in.');
                 return;
             }
+
+            if (type === 'survey') {
+                const { error } = await supabase
+                    .from('survey_results')
+                    .insert([{
+                        user_id: user.id,
+                        responses: dataToSave.responses,
+                        analysis_data: dataToSave.analysis,
+                        identified_problems: dataToSave.analysis.identifiedProblems || [],
+                    }]);
+
+                if (error) throw error;
+            } else if (type === 'dailyCheckIn') {
+                const { error } = await supabase
+                    .from('daily_checkins')
+                    .insert([{
+                        user_id: user.id,
+                        mood: dataToSave.mood,
+                    }]);
+
+                if (error) throw error;
+            }
+
             setSubmissionMessage('Your responses have been saved!');
-            loadUserResults(authToken);
+            loadUserResults();
         } catch (error) {
             setSubmissionMessage(`Error saving results: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
-    }, [authToken, loadUserResults]);
+    }, [loadUserResults]);
 
     // --- Handle Survey Submission ---
     const handleSubmitSurvey = async (e) => {

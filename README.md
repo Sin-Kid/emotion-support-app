@@ -29,7 +29,12 @@ It also features a premium **Admin Monitoring Dashboard** enabling clinicians or
 │   └── package.json         # Backend package definitions
 ├── src/                     # React 19 Frontend
 │   ├── App.jsx              # Client router, survey form, and chatbot
-│   ├── AdminPanel.jsx       # Premium clinician analytics dashboard
+│   ├── admin/               # Modular clinician analytics dashboard
+│   │   ├── utils.js         # Color configurations and mood rating maps
+│   │   ├── StatCard.jsx     # Overview metrics widgets
+│   │   ├── PatientRow.jsx   # Interactive patient records table rows
+│   │   ├── PatientDrawer.jsx# Detailed patient analytical visual drawers
+│   │   └── AdminPanel.jsx   # Core dashboard layout and data controller
 │   ├── index.css            # Stylesheets & Tailwind configuration
 │   └── index.jsx            # React client mounting entry
 ├── vite.config.js           # Vite 8 / Rolldown build configurations & proxy maps
