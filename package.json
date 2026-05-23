@@ -7,6 +7,7 @@
     "caniuse-lite": "^1.0.30001793",
     "css-loader": "^7.1.4",
     "postcss": "^8.5.15",
+    "puppeteer": "^25.0.4",
     "style-loader": "^4.0.0",
     "tailwindcss": "^3.4.17",
     "vite": "^8.0.14"
